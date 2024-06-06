@@ -12,7 +12,7 @@ jobs:
       - checkout
       - python/install-packages
       - run:
-          name: Install dependencies
+          name: Install tests dependencies
           command: pip install pytest pytest-cov
       - run:
           name: Run tests
