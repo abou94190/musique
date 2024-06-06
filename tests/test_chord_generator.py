@@ -1,5 +1,4 @@
-import pytest
-from chord_generator import pick_random_chord, calculate_interval
+from ..chord_generator import pick_random_chord, calculate_interval
 
 chords = {
     # Accords mineurs
