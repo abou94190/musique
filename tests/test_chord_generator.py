@@ -1,8 +1,6 @@
-import random
-import math
-from mido import Message, MidiFile, MidiTrack, MetaMessage, bpm2tempo
+import pytest
+from chord_generator import pick_random_chord, calculate_interval
 
-# Define the notes for the chords in Ab minor (Abm, Dbm, Ebm)
 chords = {
     # Accords mineurs
     'Cmin': [48, 51, 55],   # C, Eb, G
@@ -138,7 +136,7 @@ chords = {
     'Cbmaj7': [59, 63, 66, 70],
     'Fbmaj7': [64, 68, 59, 63],
 
-    #Diminué 
+    # Diminué
     'Cdim': [48, 51, 54],       # C, Eb, Gb
     'C#dim': [49, 52, 55],      # C#, E, G
     'Ddim': [50, 53, 56],       # D, F, Ab
@@ -153,7 +151,7 @@ chords = {
     'Bdim': [59, 62, 65],       # B, D, F
     'Cbdim': [59, 62, 65],      # Cb, D, F
 
-    #Dim 7
+    # Dim 7
     'Cdim7': [48, 51, 54, 57],    # C, Eb, Gb, Bbb (A)
     'C#dim7': [49, 52, 55, 58],   # C#, E, G, Bb
     'Ddim7': [50, 53, 56, 59],    # D, F, Ab, Cb (B)
@@ -170,112 +168,16 @@ chords = {
 
 }
 
-def humanize_chord(chord, base_velocity=64, time_variation=10, velocity_variation=15, duration_variation=10, quarter_note_ticks=480):
-    """
-    Humanize the chord by slightly varying the timing, velocity, and duration of each note.
-    
-    :param chord: List of MIDI note numbers.
-    :param base_velocity: Base velocity of the notes.
-    :param time_variation: Maximum variation in timing (ticks).
-    :param velocity_variation: Maximum variation in velocity.
-    :param duration_variation: Maximum variation in note duration (ticks).
-    :param quarter_note_ticks: Base duration of a quarter note in ticks.
-    :return: List of (note, time, velocity, duration) tuples.
-    """
-    base_duration = quarter_note_ticks
-    humanized_chord = []
-    for note in chord:
-        time_offset = random.randint(-time_variation, time_variation)
-        velocity_offset = random.randint(-velocity_variation, velocity_variation)
-        velocity = max(1, min(127, base_velocity + velocity_offset))  # Ensure velocity is within MIDI range
-        duration = base_duration + random.randint(-duration_variation, duration_variation // 2)  # Ensure duration is close to base_duration
-        duration = math.ceil(duration)  # Ensure the duration is rounded up to the nearest integer
-        humanized_chord.append((note, time_offset, velocity, duration))
-    return humanized_chord
 
-def create_chord_progression_midi(chord_names, midi_file_path, bpm):
-    """
-    Create a MIDI file with a humanized chord progression.
-    
-    :param chord_names: List of chord names (e.g., ['Abm', 'Dbm', 'Ebm']).
-    :param midi_file_path: Path to save the MIDI file.
-    :param bpm: Beats per minute (tempo) of the MIDI file.
-    :param quarter_note_ticks: Duration of a quarter note in ticks (default is 480 ticks).
-    """
-    # Convert BPM to microseconds per beat
-    tempo = bpm2tempo(bpm)
-    quarter_note_ticks=60000/bpm
-    # Create a new MIDI file and add a track
-    midi = MidiFile()
-    track = MidiTrack()
-    midi.tracks.append(track)
-
-    # Set the tempo (microseconds per beat)
-    track.append(MetaMessage('set_tempo', tempo=tempo))
+def test_pick_random_chord():
+    chord = pick_random_chord()
+    assert chord in chords
 
 
-    # Add the humanized chords to the track based on the provided chord names
-    for chord_name in chord_names:
-        if chord_name not in chords:
-            print(f"Error: Invalid chord name '{chord_name}'. Valid chords are: {list(chords.keys())}")
-            return
+def test_pick_random_chord_not_in_chord():
+    not_chord = 'Cmin'
+    assert not_chord in chords
 
-        chord = chords[chord_name]
-        humanized_chord = humanize_chord(chord, quarter_note_ticks=quarter_note_ticks)
-        max_duration = max(note[3] for note in humanized_chord)
-        note_on_times = [max(0, note[1]) for note in humanized_chord]
 
-        # Note-on messages
-        for i, (note, time_offset, velocity, duration) in enumerate(humanized_chord):
-            track.append(Message('note_on', note=note, velocity=velocity, time=note_on_times[i]))
-
-        # Note-off messages
-        for i, (note, time_offset, velocity, duration) in enumerate(humanized_chord):
-            # Calculate the note_off time to ensure all notes in the chord end approximately together
-            if i == 0:
-                track.append(Message('note_off', note=note, velocity=velocity, time=note_on_times[i] + duration))
-            else:
-                track.append(Message('note_off', note=note, velocity=velocity, time=random.randint(0,12)))
-
-    # Save the MIDI file
-    midi.save(midi_file_path)
-    print(f'MIDI file saved as {midi_file_path}')
-
-# Function to pick a random chord
-def pick_random_chord():
-    return random.choice(list(chords.keys()))
-
-# Function to calculate the interval between two MIDI note values
-def calculate_interval(note1, note2):
-    return note2 - note1
-
-# Function to evaluate the stability of the transition between two chords
-def evaluate_stability(chord1, chord2):
-    root1 = chords[chord1][0]
-    root2 = chords[chord2][0]
-    interval = calculate_interval(root1, root2)
-    
-    # Common stable intervals in music
-    stable_intervals = [0, 2, 4, 5, 7, -5, -7]
-
-    if interval in stable_intervals:
-        return 100
-    else:
-        return 0
-
-# Function to generate a chord progression starting from a given chord
-def generate_chord_progression(start_chord='Cmaj', length=4):
-    progression = [start_chord]
-    current_chord = start_chord
-    for _ in range(length - 1):
-        next_chord = pick_random_chord()
-        while evaluate_stability(current_chord, next_chord) == 0:
-            next_chord = pick_random_chord()
-        progression.append(next_chord)
-        current_chord = next_chord
-    return progression
-
-# Example usage
-chord_progression =['Abm7', 'Dbm7', 'Ebm7', 'Cbmaj7', 'Bdim7', 'Fbmaj7', 'Gb7', 'Abm7']
-create_chord_progression_midi(chord_progression, 'chord_progression.mid', bpm=153)
-
+def test_calculate_interval():
+    assert calculate_interval(60, 64) == 4, "The interval between C4 and E4 should be 4 semitones."
